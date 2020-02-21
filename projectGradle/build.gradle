@@ -1,0 +1,73 @@
+ant.importBuild '../ant/build.xml'
+
+[antinit, antcompile, antdist]*.logging*.level = LogLevel.INFO
+
+antinit {
+    doFirst {
+        logger.quiet "Deleting the directory '${ant.properties.build}'."
+    }
+
+    doLast {
+        logger.quiet "Starting from a clean slate."
+    }
+}
+
+ext.antBuildDir = '../ant/build'
+ant.properties.build = "$antBuildDir/classes"
+ant.properties.dist = "$antBuildDir/libs"
+
+task sourcesJar(type: Jar) {
+    baseName = 'my-app'
+    classifier = 'sources'
+    version = ant.properties.version
+    destinationDir = file(ant.properties.dist)
+    from new File(ant.properties.src, 'main/java')
+}
+
+antdist.dependsOn sourcesJar
+
+antcompile {
+    inputs.dir file(ant.properties.src)
+    outputs.dir file(ant.properties.build)
+}
+
+task downloadReleaseDocumentation {
+    logging.level = LogLevel.INFO
+    ext.repoUrl = 'https://downloads.apache.org/ant'
+
+    doLast {
+        ant.get(dest: ant.properties.build) {
+            url(url: "$repoUrl/RELEASE-NOTES-1.9.14.html")
+            url(url: "$repoUrl/RELEASE-NOTES-1.10.6.html")
+        }
+    }
+}
+
+antdist.dependsOn downloadReleaseDocumentation
+
+configurations {
+    antCompileGradlePath
+}
+
+repositories {
+    maven {
+        url "https://repo1.maven.org/maven2/"
+    }
+
+    maven {
+        url "https://repo.spring.io/plugins-release/"
+    }
+}
+
+dependencies {
+    antCompileGradlePath 'org.apache.commons:commons-lang3:3.1'
+}
+
+ant.properties.antCompileClasspath = configurations.antCompileGradlePath.asPath
+
+task copyRunTimeLibs(type: Copy) {
+    from configurations.antCompileGradlePath
+    into ant.properties.dist
+}
+
+antdist.dependsOn copyRunTimeLibs
